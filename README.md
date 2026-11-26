@@ -49,6 +49,7 @@ Direct dependencies are pinned below and in the requirements files. Transitive d
 | torch | 2.15.0 | Conv2d layers, automatic gradients, optimizers, device support |
 | torchvision | 0.29.2 | Image conversion and augmentation; custom dataset loading |
 | numpy | 2.5.5 | Array operations and dataset statistics |
+| pandas | 3.1.1 | Image paths and class labels in DataFrames |
 | pillow | 13.0.0 | Image decoding and RGB conversion |
 | scikit-learn | 1.9.1 | Grouped validation split, class metrics, confusion matrix |
 | matplotlib | 3.11.2 | Learning curves and error plots |
@@ -76,28 +77,25 @@ On Windows, create `artifacts` with `New-Item -ItemType Directory -Force artifac
 
 Use [GTSRB on Kaggle](https://www.kaggle.com/datasets/meowmeowmeowmeowmeow/gtsrb-german-traffic-sign): 43 classes, with an expected 39,209 training images and 12,630 test images. Verify these counts, labels, and paths after download. This is classification of cropped signs.
 
-Download when ready with the installed [KaggleHub client](https://github.com/Kaggle/kagglehub):
+Run the data stages from the repository root. The ingestion module uses KaggleHub to download the files to `data/gtsrb/`.
 
-```python
-import kagglehub
-
-path = kagglehub.dataset_download(
-    "meowmeowmeowmeowmeow/gtsrb-german-traffic-sign",
-    output_dir="data/gtsrb",
-)
-print(path)
+```bash
+python -m pipeline.data_ingestion
+python -m pipeline.data_validation
+python -m pipeline.data_preparation
+python -m pipeline.data_normalization
 ```
 
-The expected layout contains `Train/`, `Test/`, `Meta/`, `Train.csv`, and `Test.csv`. Use CSV labels and relative paths; do not treat `Meta/` reference images as training samples. Record the downloaded dataset version and file hashes with the experiment. If Kaggle requires authentication, use `kagglehub.login()` locally. Keep credentials outside Git.
+`Train.csv` and `Test.csv` supply the labels and relative paths for `Train/` and `Test/`. `Meta/` and `Meta.csv` supply class references. Record the dataset version and file hashes with the experiment. If Kaggle requires authentication, use `kagglehub.login()` locally. Keep credentials outside Git.
 
-The [original benchmark documentation](https://github.com/houbensebastian/GermanTrafficSignBenchmarks) describes multiple frames per physical sign. Preserve complete tracks in one split. Verify how the Kaggle filenames encode class, track, and frame before constructing group IDs.
+Each training filename identifies its class, track, and frame. Validation checks that its class matches the CSV label and directory. Preparation keeps each `(class, track)` group in one fold so validation measures performance on physical signs held out from training. It uses one of five folds for validation, with seed `42` and approximate class stratification. The official test set is reserved for final evaluation. [Original benchmark documentation](https://github.com/houbensebastian/GermanTrafficSignBenchmarks)
 
-## Basic experiment outline
+The DataFrames hold paths and integer class labels. The loader decodes images on demand and uses bilinear resizing to produce uniform 32 × 32 RGB inputs for batching. Normalization divides pixel values by `255.0`, then subtracts the mean and divides by the population standard deviation for each channel. The statistics come from the training fold and are reused for validation and testing.
 
-1. Prepare the dataset.
-2. Build a Conv2d classifier from scratch.
-3. Train and monitor the model.
-4. Evaluate accuracy and overfitting.
-5. Compare results and resource use.
+## Experiment methodology
+
+1. Train a compact Conv2d classifier from scratch. Record training loss and the global L2 gradient norm after backpropagation. Measure validation loss and accuracy after each epoch.
+2. Select the checkpoint with the lowest validation loss. Evaluate it on the official test split and report mean loss per image, accuracy, macro F1, and a confusion matrix.
+3. Compare runs using the same split. Record epoch time, peak memory, and run settings alongside the results.
 
 Record experiment results under `artifacts/`. Dataset files and generated training outputs are ignored by Git. `main.py` is currently a starter entry point.

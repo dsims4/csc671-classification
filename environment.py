@@ -1,3 +1,5 @@
+"""Report the local runtime and verify that PyTorch can train on it."""
+
 import argparse
 import ctypes
 from datetime import datetime, timezone
@@ -12,6 +14,18 @@ import torch
 
 
 def get_device(requested: str = "auto") -> torch.device:
+    """Select an available PyTorch device for the hardware check.
+
+    Args:
+        requested: One of auto, cpu, cuda, or mps. Auto prefers CUDA
+            (including ROCm), then MPS, then CPU.
+
+    Returns:
+        The selected torch.device.
+
+    Raises:
+        ValueError: If the requested device name is unknown or unavailable.
+    """
     available = {
         "cpu": True,
         "cuda": torch.cuda.is_available(),
@@ -25,6 +39,11 @@ def get_device(requested: str = "auto") -> torch.device:
 
 
 def get_ram_bytes() -> int | None:
+    """Read the machine's physical memory capacity.
+
+    Returns:
+        Total installed RAM in bytes, or None if the system query fails.
+    """
     if platform.system() == "Windows":
         total = ctypes.c_ulonglong()
         if ctypes.windll.kernel32.GetPhysicallyInstalledSystemMemory(ctypes.byref(total)):
@@ -37,6 +56,12 @@ def get_ram_bytes() -> int | None:
 
 
 def get_cpu_name() -> str:
+    """Read the processor name using the current platform's hardware report.
+
+    Returns:
+        The CPU model when available, with the platform processor name or
+        machine architecture as a fallback.
+    """
     try:
         if platform.system() == "Darwin":
             result = subprocess.run(
@@ -57,6 +82,12 @@ def get_cpu_name() -> str:
 
 
 def get_gpu_details() -> list[dict]:
+    """Discover the GPUs visible to the local hardware check.
+
+    Returns:
+        A list with each GPU's name and, for CUDA or ROCm, memory capacity
+        in GiB. An empty list means the available queries found no GPUs.
+    """
     if torch.cuda.is_available():
         return [
             {
@@ -84,6 +115,16 @@ def get_gpu_details() -> list[dict]:
 
 
 def main() -> None:
+    """Run one synthetic Conv2d training step and print the environment report.
+
+    The report is written to standard output as JSON. The optional --device
+    command-line argument selects the hardware used for the training check.
+
+    Raises:
+        SystemExit: If command-line parsing fails or the device is unavailable.
+        RuntimeError: If the synthetic training step fails in PyTorch.
+        importlib.metadata.PackageNotFoundError: If a reported package is missing.
+    """
     parser = argparse.ArgumentParser(description="Report hardware and package versions; check a Conv2d training step.")
     parser.add_argument("--device", choices=("auto", "cpu", "cuda", "mps"), default="auto")
     args = parser.parse_args()
