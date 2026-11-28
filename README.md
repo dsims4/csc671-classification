@@ -98,4 +98,16 @@ The DataFrames hold paths and integer class labels. The loader decodes images on
 2. Select the checkpoint with the lowest validation loss. Evaluate it on the official test split and report mean loss per image, accuracy, macro F1, and a confusion matrix.
 3. Compare runs using the same split. Record epoch time, peak memory, and run settings alongside the results.
 
-Record experiment results under `artifacts/`. Dataset files and generated training outputs are ignored by Git. `main.py` is currently a starter entry point.
+Run `python main.py --epochs 10` to train the classifier. Each run saves its
+metrics and the checkpoint with the lowest validation loss under `artifacts/`.
+Git ignores the dataset and generated training outputs.
+
+## Results
+
+The compact CNN trained on 31,349 images for 10 epochs on CPU. Epoch 10 had
+the lowest validation loss (0.6589) and reached 86.15% accuracy on 7,860
+validation images.
+
+On the official test set, the model correctly classified 10,624 of 12,630
+images (84.12% accuracy). Mean test loss was 0.7162 and macro F1 was 0.7638.
+The most frequent error was reading a 70 km/h sign as 30 km/h (88 images).
